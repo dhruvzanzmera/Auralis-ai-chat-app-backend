@@ -1,24 +1,45 @@
 import mongoose from 'mongoose'
 import Chat from '../models/Chat.js'
 import { generateReply } from '../services/groqService.js'
+import { recordUsage } from '../services/usageService.js'
+
+async function trackedReply({ userId, successChatId, failureChatId, operation, messages, prompt }) {
+  const startedAt = Date.now()
+  try {
+    const result = await generateReply(messages, prompt)
+    await recordUsage({ user: userId, chat: successChatId, operation, prompt, result, startedAt }).catch((loggingError) => {
+      console.error('Could not record Groq usage:', loggingError.message)
+    })
+    return result.content
+  } catch (error) {
+    await recordUsage({ user: userId, chat: failureChatId, operation, prompt, error, startedAt }).catch((loggingError) => {
+      console.error('Could not record Groq usage attempt:', loggingError.message)
+    })
+    throw error
+  }
+}
 
 export async function sendMessage(req, res, next) {
   try {
     const { chatId, prompt } = req.body || {}
-    if (typeof prompt !== 'string' || !prompt.trim()) {
-      return res.status(400).json({ message: 'Prompt must be a non-empty string.' })
+    if (typeof prompt !== 'string' || !prompt.trim() || prompt.length > 20000) {
+      return res.status(400).json({ message: 'Prompt must be between 1 and 20,000 characters.' })
     }
     if (chatId && !mongoose.isValidObjectId(chatId)) {
       return res.status(400).json({ message: 'Invalid chat ID.' })
     }
 
     const cleanPrompt = prompt.trim()
-    let chat = chatId ? await Chat.findById(chatId) : null
+    await req.user.updateOne({ $set: { lastActivityAt: new Date() } })
+    let chat = chatId ? await Chat.findOne({ _id: chatId, user: req.user._id }) : null
     if (chatId && !chat) return res.status(404).json({ message: 'Chat not found.' })
-    if (!chat) chat = new Chat({ title: cleanPrompt.slice(0, 40) })
+    if (!chat) chat = new Chat({ user: req.user._id, title: cleanPrompt.slice(0, 40) })
 
     const userMessage = { role: 'user', content: cleanPrompt, createdAt: new Date() }
-    const aiContent = await generateReply(chat.messages, cleanPrompt)
+    const aiContent = await trackedReply({
+      userId: req.user._id, successChatId: chat._id, failureChatId: chat.isNew ? null : chat._id,
+      operation: 'message', messages: chat.messages, prompt: cleanPrompt,
+    })
     const aiMessage = { role: 'model', content: aiContent, createdAt: new Date() }
 
     chat.messages.push(userMessage, aiMessage)
@@ -34,9 +55,9 @@ export async function sendMessage(req, res, next) {
   }
 }
 
-export async function listChats(_req, res, next) {
+export async function listChats(req, res, next) {
   try {
-    const chats = await Chat.find().select('title updatedAt').sort({ updatedAt: -1 }).lean()
+    const chats = await Chat.find({ user: req.user._id }).select('title updatedAt').sort({ updatedAt: -1 }).lean()
     return res.json(chats.map(({ _id, title, updatedAt }) => ({ _id, id: _id, title, updatedAt })))
   } catch (error) {
     return next(error)
@@ -48,7 +69,7 @@ export async function getChat(req, res, next) {
     if (!mongoose.isValidObjectId(req.params.id)) {
       return res.status(400).json({ message: 'Invalid chat ID.' })
     }
-    const chat = await Chat.findById(req.params.id).lean()
+    const chat = await Chat.findOne({ _id: req.params.id, user: req.user._id }).lean()
     if (!chat) return res.status(404).json({ message: 'Chat not found.' })
     return res.json(chat)
   } catch (error) {
@@ -67,8 +88,8 @@ export async function renameChat(req, res, next) {
       return res.status(400).json({ message: 'Chat title must be between 1 and 80 characters.' })
     }
 
-    const chat = await Chat.findByIdAndUpdate(
-      req.params.id,
+    const chat = await Chat.findOneAndUpdate(
+      { _id: req.params.id, user: req.user._id },
       { title },
       { new: true, runValidators: true },
     ).select('title updatedAt').lean()
@@ -92,18 +113,22 @@ export async function editMessage(req, res, next) {
     }
 
     const prompt = typeof req.body?.prompt === 'string' ? req.body.prompt.trim() : ''
-    if (!prompt) {
-      return res.status(400).json({ message: 'Prompt must be a non-empty string.' })
+    if (!prompt || prompt.length > 20000) {
+      return res.status(400).json({ message: 'Prompt must be between 1 and 20,000 characters.' })
     }
 
-    const chat = await Chat.findById(req.params.id)
+    const chat = await Chat.findOne({ _id: req.params.id, user: req.user._id })
     if (!chat) return res.status(404).json({ message: 'Chat not found.' })
     if (messageIndex >= chat.messages.length || chat.messages[messageIndex].role !== 'user') {
       return res.status(400).json({ message: 'Only existing user prompts can be edited.' })
     }
 
     const previousMessages = chat.messages.slice(0, messageIndex)
-    const aiContent = await generateReply(previousMessages, prompt)
+    await req.user.updateOne({ $set: { lastActivityAt: new Date() } })
+    const aiContent = await trackedReply({
+      userId: req.user._id, successChatId: chat._id, failureChatId: chat._id,
+      operation: 'regeneration', messages: previousMessages, prompt,
+    })
     chat.messages.splice(messageIndex)
     chat.messages.push(
       { role: 'user', content: prompt, createdAt: new Date() },
@@ -122,7 +147,7 @@ export async function deleteChat(req, res, next) {
     if (!mongoose.isValidObjectId(req.params.id)) {
       return res.status(400).json({ message: 'Invalid chat ID.' })
     }
-    const chat = await Chat.findByIdAndDelete(req.params.id)
+    const chat = await Chat.findOneAndDelete({ _id: req.params.id, user: req.user._id })
     if (!chat) return res.status(404).json({ message: 'Chat not found.' })
     return res.json({ message: 'Chat deleted.' })
   } catch (error) {

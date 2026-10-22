@@ -1,18 +1,25 @@
 {
   "name": "ai-chat-backend",
   "version": "1.0.0",
-  "description": "Express and MongoDB backend for Nova AI chat",
+  "description": "Express and MongoDB backend for Auralis AI",
   "main": "src/server.js",
   "type": "module",
   "scripts": {
     "dev": "nodemon --env-file=.env src/server.js",
-    "start": "node --env-file=.env src/server.js"
+    "start": "node --env-file=.env src/server.js",
+    "seed:admin": "node --env-file=.env scripts/seedAdmin.js",
+    "test": "node --test"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
-    "mongoose": "^8.9.5"
+    "express-rate-limit": "^8.7.1",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^8.9.5",
+    "nodemailer": "^10.2.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.14"
