@@ -7,7 +7,7 @@ import { createResetToken, hashToken } from '../utils/authTokens.js'
 const cookieOptions = () => ({
   httpOnly: true,
   secure: process.env.NODE_ENV === 'production',
-  sameSite: process.env.COOKIE_SAME_SITE || 'lax',
+  sameSite: process.env.COOKIE_SAME_SITE || (process.env.NODE_ENV === 'production' ? 'none' : 'lax'),
   maxAge: sessionDurationMs(),
   path: '/',
 })

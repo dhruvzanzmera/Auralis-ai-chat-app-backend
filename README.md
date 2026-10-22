@@ -6,6 +6,16 @@ Express/Mongoose API for Auralis authentication, user-owned conversations, Groq 
 
 1. Use Node.js 20.19+ or 22.12+ and start MongoDB.
 2. If `.env` does not exist, copy `.env.example` to `.env`; configure `MONGO_URI`, a random `JWT_SECRET` of at least 32 characters, `GROQ_API_KEY`, and the frontend origin in `CLIENT_URLS`.
+   For production deployments where the frontend and API use different sites,
+   set `COOKIE_SAME_SITE=none` and run the API over HTTPS. The session cookie is
+   `httpOnly` and `Secure` in production. Set the frontend build variable
+   `VITE_API_URL` to the deployed API's `/api` URL (not `localhost`) and include
+   the exact deployed frontend origin in the backend's comma-separated
+   `CLIENT_URLS`. If your hosting provider manages environment variables, set
+   these there; `.env.prod` is gitignored and is not loaded by `npm start`.
+   Browsers may block cross-site cookies under strict third-party-cookie
+   policies; in that case, serve the API and frontend from the same site (for
+   example, proxy the API through the frontend domain).
 3. Configure SMTP if password reset email should be available. For Gmail, use
    `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=587`, and `SMTP_SECURE=false`; set
    `SMTP_USER` to the full sending mailbox, `SMTP_PASSWORD` to its Google

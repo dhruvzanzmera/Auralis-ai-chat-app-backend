@@ -48,10 +48,18 @@ test('registration hashes passwords and never accepts a public role assignment',
 
 test('login rejects blocked users and successful login sets a session cookie', async (t) => {
   const previousSecret = process.env.JWT_SECRET
+  const previousNodeEnv = process.env.NODE_ENV
+  const previousSameSite = process.env.COOKIE_SAME_SITE
   process.env.JWT_SECRET = JWT_SECRET
+  process.env.NODE_ENV = 'production'
+  delete process.env.COOKIE_SAME_SITE
   const previousFindOne = User.findOne
   t.after(() => {
     process.env.JWT_SECRET = previousSecret
+    if (previousNodeEnv === undefined) delete process.env.NODE_ENV
+    else process.env.NODE_ENV = previousNodeEnv
+    if (previousSameSite === undefined) delete process.env.COOKIE_SAME_SITE
+    else process.env.COOKIE_SAME_SITE = previousSameSite
     User.findOne = previousFindOne
   })
   const password = await bcrypt.hash('a-secure-password', 4)
@@ -72,6 +80,8 @@ test('login rejects blocked users and successful login sets a session cookie', a
   assert.equal(successful.statusCode, 200)
   assert.equal(successful.cookieValue.name, 'auralis_token')
   assert.equal(successful.cookieValue.options.httpOnly, true)
+  assert.equal(successful.cookieValue.options.secure, true)
+  assert.equal(successful.cookieValue.options.sameSite, 'none')
 
   User.findOne = () => ({ select: async () => ({ ...user, isBlocked: true }) })
   const blocked = response()
