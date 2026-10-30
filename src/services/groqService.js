@@ -64,5 +64,5 @@ export async function generateReply(previousMessages, prompt) {
     error.status = 502
     throw error
   }
-  return { content, model: data.model || model, usage: data.usage || {} }
+  return { content, model: data.model || model }
 }

@@ -3,7 +3,6 @@ import {
   analyticsErrors,
   analyticsModels,
   analyticsPrompts,
-  analyticsTokens,
   analyticsUsers,
   dashboard,
   getUser,
@@ -20,7 +19,6 @@ router.get('/dashboard', dashboard)
 router.get('/analytics', dashboard)
 router.get('/analytics/prompts', analyticsPrompts)
 router.get('/analytics/users', analyticsUsers)
-router.get('/analytics/tokens', analyticsTokens)
 router.get('/analytics/models', analyticsModels)
 router.get('/analytics/errors', analyticsErrors)
 router.get('/users', listUsers)

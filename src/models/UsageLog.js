@@ -6,12 +6,8 @@ const usageLogSchema = new mongoose.Schema({
   operation: { type: String, enum: ['message', 'regeneration'], required: true },
   success: { type: Boolean, required: true, index: true },
   model: { type: String, required: true },
-  promptTokens: { type: Number, default: null },
-  completionTokens: { type: Number, default: null },
-  totalTokens: { type: Number, default: null },
   responseTimeMs: { type: Number, required: true },
   errorCode: { type: String, default: null },
-  prompt: { type: String, default: undefined },
 }, { timestamps: true })
 
 usageLogSchema.index({ user: 1, createdAt: -1 })

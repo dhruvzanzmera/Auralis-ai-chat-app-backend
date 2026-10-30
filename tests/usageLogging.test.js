@@ -3,14 +3,11 @@ import assert from 'node:assert/strict'
 import UsageLog from '../src/models/UsageLog.js'
 import { recordUsage } from '../src/services/usageService.js'
 
-test('failed Groq attempts are logged without prompt retention by default', async (t) => {
+test('failed Groq attempts are recorded without storing prompt or token metadata', async (t) => {
   const previousCreate = UsageLog.create
-  const previousRetention = process.env.RETAIN_USAGE_PROMPTS
   t.after(() => {
     UsageLog.create = previousCreate
-    process.env.RETAIN_USAGE_PROMPTS = previousRetention
   })
-  process.env.RETAIN_USAGE_PROMPTS = 'false'
   UsageLog.create = async (record) => record
   const startedAt = Date.now() - 20
   const failure = new Error('Upstream timeout')
@@ -29,17 +26,15 @@ test('failed Groq attempts are logged without prompt retention by default', asyn
   assert.equal(record.errorCode, 'GROQ_TIMEOUT')
   assert.equal(record.user, '507f191e810c19729de860ea')
   assert.equal(record.prompt, undefined)
+  assert.equal(record.totalTokens, undefined)
   assert.ok(record.responseTimeMs >= 20)
 })
 
-test('successful usage records Groq token metadata and optional prompt content', async (t) => {
+test('successful usage records prompt request metadata without token or prompt content', async (t) => {
   const previousCreate = UsageLog.create
-  const previousRetention = process.env.RETAIN_USAGE_PROMPTS
   t.after(() => {
     UsageLog.create = previousCreate
-    process.env.RETAIN_USAGE_PROMPTS = previousRetention
   })
-  process.env.RETAIN_USAGE_PROMPTS = 'true'
   UsageLog.create = async (record) => record
 
   const record = await recordUsage({
@@ -55,8 +50,10 @@ test('successful usage records Groq token metadata and optional prompt content',
   })
   assert.equal(record.success, true)
   assert.equal(record.model, 'test-model')
-  assert.equal(record.promptTokens, 17)
-  assert.equal(record.completionTokens, 23)
-  assert.equal(record.totalTokens, 40)
-  assert.equal(record.prompt, 'retained only when configured')
+  assert.equal(record.promptTokens, undefined)
+  assert.equal(record.completionTokens, undefined)
+  assert.equal(record.totalTokens, undefined)
+  assert.equal(record.prompt, undefined)
+  assert.equal(UsageLog.schema.path('totalTokens'), undefined)
+  assert.equal(UsageLog.schema.path('prompt'), undefined)
 })

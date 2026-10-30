@@ -6,6 +6,8 @@ Express/Mongoose API for Auralis authentication, user-owned conversations, Groq 
 
 1. Use Node.js 20.19+ or 22.12+ and start MongoDB.
 2. If `.env` does not exist, copy `.env.example` to `.env`; configure `MONGO_URI`, a random `JWT_SECRET` of at least 32 characters, `GROQ_API_KEY`, and the frontend origin in `CLIENT_URLS`.
+   The server trusts one reverse-proxy hop for client IP detection and
+   rate-limiting when deployed behind Render.
    For production deployments where the frontend and API use different sites,
    set `COOKIE_SAME_SITE=none` and run the API over HTTPS. The session cookie is
    `httpOnly` and `Secure` in production. Set the frontend build variable
@@ -47,7 +49,7 @@ Express/Mongoose API for Auralis authentication, user-owned conversations, Groq 
    npm run dev
    ```
 
-Usage timestamps and reports are UTC. Prompt text is excluded unless `RETAIN_USAGE_PROMPTS=true`. The Groq request timeout is configured with `GROQ_TIMEOUT_MS`.
+Usage timestamps and daily prompt-count reports are UTC. Usage records store request counts and status metadata only; prompt text and token counts are not retained. The Groq request timeout is configured with `GROQ_TIMEOUT_MS`.
 
 ## Test
 

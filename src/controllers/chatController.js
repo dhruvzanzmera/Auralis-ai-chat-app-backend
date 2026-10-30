@@ -7,12 +7,12 @@ async function trackedReply({ userId, successChatId, failureChatId, operation, m
   const startedAt = Date.now()
   try {
     const result = await generateReply(messages, prompt)
-    await recordUsage({ user: userId, chat: successChatId, operation, prompt, result, startedAt }).catch((loggingError) => {
+    await recordUsage({ user: userId, chat: successChatId, operation, result, startedAt }).catch((loggingError) => {
       console.error('Could not record Groq usage:', loggingError.message)
     })
     return result.content
   } catch (error) {
-    await recordUsage({ user: userId, chat: failureChatId, operation, prompt, error, startedAt }).catch((loggingError) => {
+    await recordUsage({ user: userId, chat: failureChatId, operation, error, startedAt }).catch((loggingError) => {
       console.error('Could not record Groq usage attempt:', loggingError.message)
     })
     throw error
