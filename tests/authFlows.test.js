@@ -4,7 +4,8 @@ import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import User from '../src/models/User.js'
 import Chat from '../src/models/Chat.js'
-import { register, login } from '../src/controllers/authController.js'
+import { register, login, adminLogin, forgotPassword } from '../src/controllers/authController.js'
+import { listChats } from '../src/controllers/chatController.js'
 import { authenticate, requireAdmin } from '../src/middleware/auth.js'
 import { getChat } from '../src/controllers/chatController.js'
 
@@ -87,6 +88,88 @@ test('login rejects blocked users and successful login sets a session cookie', a
   const blocked = response()
   await login({ body: { email: user.email, password: 'a-secure-password' } }, blocked, (error) => { throw error })
   assert.equal(blocked.statusCode, 403)
+})
+
+test('forgot password returns the same neutral message without revealing account existence', async (t) => {
+  const previousFindOne = User.findOne
+  const previousSmtpHost = process.env.SMTP_HOST
+  const previousSmtpFrom = process.env.SMTP_FROM
+  const previousConsoleError = console.error
+  delete process.env.SMTP_HOST
+  delete process.env.SMTP_FROM
+  console.error = () => {}
+  t.after(() => {
+    User.findOne = previousFindOne
+    if (previousSmtpHost === undefined) delete process.env.SMTP_HOST
+    else process.env.SMTP_HOST = previousSmtpHost
+    if (previousSmtpFrom === undefined) delete process.env.SMTP_FROM
+    else process.env.SMTP_FROM = previousSmtpFrom
+    console.error = previousConsoleError
+  })
+
+  const account = { email: 'user@example.com', async save() {} }
+  User.findOne = async () => account
+  const existingAccountResponse = response()
+  await forgotPassword({ body: { email: account.email } }, existingAccountResponse, (error) => { throw error })
+
+  User.findOne = async () => null
+  const unknownAccountResponse = response()
+  await forgotPassword({ body: { email: 'unknown@example.com' } }, unknownAccountResponse, (error) => { throw error })
+
+  const expectedMessage = 'Password reset request received. If eligible, instructions will be sent.'
+  assert.equal(existingAccountResponse.body.message, expectedMessage)
+  assert.equal(unknownAccountResponse.body.message, expectedMessage)
+})
+
+test('administrator login rejects non-admin accounts with a backend message', async (t) => {
+  const previousFindOne = User.findOne
+  t.after(() => { User.findOne = previousFindOne })
+  const user = {
+    email: 'user@example.com',
+    password: await bcrypt.hash('a-secure-password', 4),
+    role: 'USER',
+    isBlocked: false,
+  }
+  User.findOne = () => ({ select: async () => user })
+
+  const res = response()
+  await adminLogin({ body: { email: user.email, password: 'a-secure-password' } }, res, (error) => { throw error })
+
+  assert.equal(res.statusCode, 403)
+  assert.equal(res.body.message, 'Administrator access is required to sign in here.')
+  assert.equal(res.cookieValue, undefined)
+})
+
+test('empty conversation list returns its empty-state message from the backend', async (t) => {
+  const previousFind = Chat.find
+  t.after(() => { Chat.find = previousFind })
+  Chat.find = () => ({
+    select() { return this },
+    sort() { return this },
+    lean: async () => [],
+  })
+
+  const res = response()
+  await listChats({ user: { _id: '507f191e810c19729de860ea' } }, res, (error) => { throw error })
+
+  assert.deepEqual(res.body.chats, [])
+  assert.equal(res.body.message, 'No conversations yet. Start a new conversation and it will appear here.')
+})
+
+test('conversation list returns backend-authored delete confirmation text', async (t) => {
+  const previousFind = Chat.find
+  t.after(() => { Chat.find = previousFind })
+  Chat.find = () => ({
+    select() { return this },
+    sort() { return this },
+    lean: async () => [{ _id: 'chat-id', title: 'Project notes', updatedAt: new Date() }],
+  })
+
+  const res = response()
+  await listChats({ user: { _id: '507f191e810c19729de860ea' } }, res, (error) => { throw error })
+
+  assert.equal(res.body.chats[0].deleteConfirmationMessage, '“Project notes” and its messages will be permanently deleted.')
+  assert.equal(res.body.message, '')
 })
 
 test('authentication rejects blocked users and admin authorization rejects ordinary users', async (t) => {

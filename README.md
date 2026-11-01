@@ -51,6 +51,17 @@ Express/Mongoose API for Auralis authentication, user-owned conversations, Groq 
 
 Usage timestamps and daily prompt-count reports are UTC. Usage records store request counts and status metadata only; prompt text and token counts are not retained. The Groq request timeout is configured with `GROQ_TIMEOUT_MS`.
 
+## API messages
+
+User-facing operation, validation, error, and empty-state messages are returned
+by the API in a `message` field. `GET /api/chats` returns an object containing
+`chats` and an empty-state `message`; each chat includes the backend-provided
+`deleteConfirmationMessage` used by the confirmation dialog.
+
+Each request is logged as a JSON line with its method, path, status, duration,
+and authenticated user ID when available. Request and response bodies, query
+strings, and credentials are intentionally not logged.
+
 ## Test
 
 ```powershell

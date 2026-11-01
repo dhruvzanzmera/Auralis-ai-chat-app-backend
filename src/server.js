@@ -3,6 +3,7 @@ import cors from 'cors'
 import express from 'express'
 import { connectDB } from './config/db.js'
 import { errorHandler } from './middleware/errorHandler.js'
+import { requestLogger } from './middleware/requestLogger.js'
 import cookieParser from 'cookie-parser'
 import { seedAdmin } from './services/adminSeeder.js'
 import authRoutes from './routes/authRoutes.js'
@@ -23,6 +24,7 @@ const allowedOrigins = (process.env.CLIENT_URLS || process.env.CLIENT_URL || 'ht
   .map((origin) => origin.trim().replace(/\/+$/, ''))
   .filter(Boolean)
 
+app.use(requestLogger)
 app.use(cors({
   credentials: true,
   origin(origin, callback) {

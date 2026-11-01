@@ -70,6 +70,11 @@ export async function dashboard(req, res, next) {
       },
       dailyPrompts,
       mostActiveUsers,
+      messages: {
+        mostActiveUsers: mostActiveUsers.length
+          ? ''
+          : 'No user activity has been recorded for this date range.',
+      },
     })
   } catch (error) { return next(error) }
 }
@@ -80,7 +85,14 @@ export async function analyticsPrompts(req, res, next) {
     const bucket = req.query.bucket || 'daily'
     groupBy(bucket)
     const series = await getPromptSeries(range, bucket)
-    return res.json({ range: range.range, bucket, timezone: 'UTC', series })
+    const hasActivity = series.some((row) => row.count > 0)
+    return res.json({
+      range: range.range,
+      bucket,
+      timezone: 'UTC',
+      series,
+      message: hasActivity ? '' : 'No prompt activity has been recorded for this date range.',
+    })
   } catch (error) { return next(error) }
 }
 
@@ -101,7 +113,14 @@ export async function analyticsUsers(req, res, next) {
       ]),
       getTopUsers(range),
     ])
-    return res.json({ range: range.range, bucket, timezone: 'UTC', series: registrations, mostActiveUsers })
+    return res.json({
+      range: range.range,
+      bucket,
+      timezone: 'UTC',
+      series: registrations,
+      mostActiveUsers,
+      message: registrations.length ? '' : 'No accounts were registered during this date range.',
+    })
   } catch (error) { return next(error) }
 }
 
@@ -119,7 +138,11 @@ export async function analyticsModels(req, res, next) {
       { $sort: { count: -1 } },
       { $project: { _id: 0, model: '$_id', count: 1, successful: 1, failed: 1 } },
     ])
-    return res.json({ range: range.range, models })
+    return res.json({
+      range: range.range,
+      models,
+      message: models.length ? '' : 'No model usage has been recorded for this date range.',
+    })
   } catch (error) { return next(error) }
 }
 
@@ -171,7 +194,18 @@ export async function listUsers(req, res, next) {
       User.countDocuments(filter),
     ])
     const users = rows.map(({ isBlocked, ...user }) => ({ ...user, status: isBlocked ? 'blocked' : 'active' }))
-    return res.json({ users, page, limit, total, pages: Math.ceil(total / limit) })
+    return res.json({
+      users,
+      page,
+      limit,
+      total,
+      pages: Math.ceil(total / limit),
+      message: users.length
+        ? ''
+        : search || req.query.role || req.query.status
+          ? 'No accounts match the selected filters.'
+          : 'No accounts are available.',
+    })
   } catch (error) { return next(error) }
 }
 
@@ -192,7 +226,13 @@ export async function getUserUsage(req, res, next) {
     if (!userExists) return res.status(404).json({ message: 'User not found.' })
     const range = resolveRange({ range: '7d' })
     const series = await getPromptSeries(range, 'daily', req.params.id)
-    return res.json({ range: range.range, timezone: 'UTC', series })
+    const hasActivity = series.some((row) => row.count > 0)
+    return res.json({
+      range: range.range,
+      timezone: 'UTC',
+      series,
+      message: hasActivity ? '' : 'No prompt activity has been recorded for this account in the last 7 days.',
+    })
   } catch (error) { return next(error) }
 }
 

@@ -63,7 +63,7 @@ export async function register(req, res, next) {
   }
 }
 
-export async function login(req, res, next) {
+async function loginWithRole(req, res, next, adminOnly) {
   try {
     const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : ''
     const password = req.body?.password
@@ -73,11 +73,22 @@ export async function login(req, res, next) {
       return res.status(401).json({ message: 'Invalid email or password.' })
     }
     if (user.isBlocked) return res.status(403).json({ message: 'This account has been blocked.' })
+    if (adminOnly && user.role !== 'ADMIN') {
+      return res.status(403).json({ message: 'Administrator access is required to sign in here.' })
+    }
     user.lastActivityAt = new Date()
     await user.save()
     setSessionCookie(res, user)
     return res.json({ user: publicUser(user) })
   } catch (error) { return next(error) }
+}
+
+export function login(req, res, next) {
+  return loginWithRole(req, res, next, false)
+}
+
+export function adminLogin(req, res, next) {
+  return loginWithRole(req, res, next, true)
 }
 
 export function logout(_req, res) {
@@ -143,7 +154,7 @@ export async function forgotPassword(req, res, next) {
         console.error('Password reset email is not configured: SMTP_HOST and SMTP_FROM are required.')
       }
     }
-    return res.json({ message: 'If an account exists for that email, password reset instructions will be sent.' })
+    return res.json({ message: 'Password reset request received. If eligible, instructions will be sent.' })
   } catch (error) { return next(error) }
 }
 

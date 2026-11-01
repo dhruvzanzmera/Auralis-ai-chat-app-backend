@@ -58,7 +58,16 @@ export async function sendMessage(req, res, next) {
 export async function listChats(req, res, next) {
   try {
     const chats = await Chat.find({ user: req.user._id }).select('title updatedAt').sort({ updatedAt: -1 }).lean()
-    return res.json(chats.map(({ _id, title, updatedAt }) => ({ _id, id: _id, title, updatedAt })))
+    return res.json({
+      chats: chats.map(({ _id, title, updatedAt }) => ({
+        _id,
+        id: _id,
+        title,
+        updatedAt,
+        deleteConfirmationMessage: `“${title || 'New conversation'}” and its messages will be permanently deleted.`,
+      })),
+      message: chats.length ? '' : 'No conversations yet. Start a new conversation and it will appear here.',
+    })
   } catch (error) {
     return next(error)
   }
@@ -95,7 +104,10 @@ export async function renameChat(req, res, next) {
     ).select('title updatedAt').lean()
     if (!chat) return res.status(404).json({ message: 'Chat not found.' })
 
-    return res.json(chat)
+    return res.json({
+      ...chat,
+      deleteConfirmationMessage: `“${chat.title || 'New conversation'}” and its messages will be permanently deleted.`,
+    })
   } catch (error) {
     return next(error)
   }
